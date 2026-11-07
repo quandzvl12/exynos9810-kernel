@@ -3,6 +3,10 @@
 
 #include <linux/io.h>
 
+#if defined(CONFIG_ICE)
+#include "../../icedata/icedata.h"
+#endif
+
 #define ASV_TABLE_BASE	(0x10009000)
 #define ID_TABLE_BASE	(0x10000000)
 
@@ -209,6 +213,14 @@ int asv_table_init(void)
 	pr_info("  fsys grp : %d\n", asv_tbl.fsys_asv_group);
 	pr_info("  product_line : %d\n", id_tbl.product_line);
 	pr_info("  asb_version : %d\n", id_tbl.asb_version);
+#if defined(CONFIG_ICE)
+	ice_asv_scores_cl0 = asv_tbl.littlecpu_asv_group;
+	ice_asv_scores_cl1 = asv_tbl.bigcpu_asv_group;
+	ice_asv_scores_g3d = asv_tbl.g3d_asv_group;
+	ice_asv_scores_mif = asv_tbl.mif_asv_group;
+	ice_asv_scores_cp = asv_tbl.cp_asv_group;
+	ice_asv_scores_disp = asv_tbl.cam_disp_asv_group;
+#endif
 
 	return asv_tbl.asv_table_version;
 }

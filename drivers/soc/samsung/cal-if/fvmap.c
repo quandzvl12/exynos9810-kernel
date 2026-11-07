@@ -12,6 +12,10 @@
 #include "vclk.h"
 #include "ra.h"
 
+#if defined(CONFIG_ICE)
+#include "../icedata/icedata.h"
+#endif
+
 #define FVMAP_SIZE		(SZ_8K)
 #define STEP_UV			(6250)
 
@@ -449,6 +453,10 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 	unsigned int paddr_offset, fvaddr_offset;
 	int size, margin;
 	int i, j;
+#if defined(CONFIG_ICE)
+	enum ice_domain ice_domain;
+	unsigned int ice_reduction_uv;
+#endif
 
 	fvmap_header = map_base;
 	header = sram_base;
@@ -496,6 +504,10 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 		if (margin)
 			cal_dfs_set_volt_margin(i | ACPM_VCLK_TYPE, margin);
 
+#if defined(CONFIG_ICE)
+		ice_domain = ice_domain_from_name(vclk->name);
+#endif
+
 		for (j = 0; j < fvmap_header[i].num_of_lv; j++) {
 			if (strcmp(vclk->name, "dvfs_mif") == 0) {
 				if (old->table[j].rate == 2002000)
@@ -506,6 +518,17 @@ static void fvmap_copy_from_sram(void __iomem *map_base, void __iomem *sram_base
 					old->table[j].volt = 768750;
 			}
 
+#if defined(CONFIG_ICE)
+			/* per-ASV-group undervolt; never underflow the stock voltage */
+			ice_reduction_uv = ice_get_undervolt_uv(ice_domain, old->table[j].rate);
+			if (ice_reduction_uv) {
+				if (unlikely(old->table[j].volt < ice_reduction_uv))
+					pr_warn("[ICE] ignoring excessive offset for %s at %u kHz\n",
+						vclk->name, old->table[j].rate);
+				else
+					old->table[j].volt -= ice_reduction_uv;
+			}
+#endif
 			new->table[j].rate = old->table[j].rate;
 			new->table[j].volt = old->table[j].volt;
 			pr_info("  lv : [%7d], volt = %d uV (%d %%) \n",

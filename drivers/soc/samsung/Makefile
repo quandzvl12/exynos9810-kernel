@@ -66,3 +66,6 @@ obj-$(CONFIG_ARCH_EXYNOS)	+= secmem.o
 
 # Dummy file for disabling SEC_DEBUG 
 obj-y += sec_dummy.o
+
+# ICE
+obj-$(CONFIG_ICE)	+= icedata/
