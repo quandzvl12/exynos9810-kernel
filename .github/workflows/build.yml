@@ -3,6 +3,11 @@ name: Build Note9 kernel (Apollo / DS-ACK)
 on:
   workflow_dispatch:
     inputs:
+      device:
+        description: "Note9 variant: N960F (INTL) or N960N (KOR)"
+        default: "N960F"
+        type: choice
+        options: ["N960F", "N960N"]
       selinux:
         description: "SELinux: 1 = Permissive, 2 = Enforcing"
         default: "2"
@@ -73,17 +78,78 @@ jobs:
           grep -n "CONFIG_ICE" arch/arm64/configs/exynos9810_defconfig || echo "ICE not enabled"
 
       # apollo.sh is interactive. Answers in order:
-      # target (3 = Note9 INTL), compiler (3 = Google clang 18),
+      # target (3 = Note9 INTL, 6 = Note9 KOR), compiler (3 = Google clang 18),
       # SELinux, KernelSU, clean build (n).
       - name: Build (apollo.sh)
         env:
           TERM: xterm
         run: |
           chmod +x apollo.sh Apollo/A.I.K/*.sh || true
-          printf '3\n3\n%s\n%s\nn\n' "${{ inputs.selinux }}" "${{ inputs.ksu }}" \
+          if [ "${{ inputs.device }}" = "N960N" ]; then TARGET=6; else TARGET=3; fi
+          printf '%s\n3\n%s\n%s\nn\n' "$TARGET" "${{ inputs.selinux }}" "${{ inputs.ksu }}" \
             | bash apollo.sh 2>&1 | tee build.log
           # apollo.sh exits 0 even on failure, so check for the result
           ls -l Apollo/Product/*.img
+
+      # apollo.sh only builds a ZIP for "all devices" (6 builds). For a single
+      # Note9 we take the kernel + dtb back out of the boot.img it just made
+      # and put them in the same installer, using them directly (no bsdiff base).
+      - name: Package flashable ZIP (Note9 only)
+        run: |
+          set -e
+          VARIANT="${{ inputs.device }}"
+          IMG=$(ls Apollo/Product/*.img | head -1)
+          NAME=$(basename "$IMG" .img)
+          cp "$IMG" /tmp/note9.img
+
+          UB=Apollo/A.I.K/bin/linux/x86_64/unpackbootimg
+          chmod +x "$UB"
+          rm -rf /tmp/ub && mkdir -p /tmp/ub
+          "$UB" -i /tmp/note9.img -o /tmp/ub/
+          test -s /tmp/ub/note9.img-zImage
+          test -s /tmp/ub/note9.img-dtb
+
+          rm -rf pkg && cp -r Apollo/kernelzip pkg
+          cp /tmp/ub/note9.img-zImage "pkg/floyd/${VARIANT}-kernel"
+          cp /tmp/ub/note9.img-dtb "pkg/floyd/${VARIANT}-dtb"
+
+          python3 - "$VARIANT" "$NAME" <<'PY'
+          import re, sys
+          variant, name = sys.argv[1], sys.argv[2]
+          p = "pkg/META-INF/com/google/android/update-binary"
+          s = open(p).read()
+          s = s.replace("grep '[GN]96[05][FN]'", "grep '%s'" % variant, 1)
+          block = (
+              'ui_print "Detecting device..."\n'
+              "    if echo $device | grep '%(v)s'; then\n"
+              '        ui_print "- Note9 %(v)s detected"\n'
+              "        mv %(v)s-kernel kernel\n"
+              "        mv %(v)s-dtb extra\n"
+              "        sleep 1\n"
+              "    else\n"
+              '        ui_print "! Device is not supported"\n'
+              '        ui_print "Aborting..."\n'
+              "        sleep 1\n"
+              "        exit 1\n"
+              "    fi\n\n    "
+          ) % {"v": variant}
+          s, n = re.subn(r'ui_print "Detecting device\.\.\."\n.*?(?=ui_print "- Installing DS-ACK-V1 Kernel")', lambda m: block, s, count=1, flags=re.S)
+          assert n == 1, "installer detection block not found"
+          s = s.replace("fkv", name)
+          open(p, "w").write(s)
+          PY
+
+          bash -n pkg/META-INF/com/google/android/update-binary
+          rm -f pkg/floyd/tools/bsdiff
+          (cd pkg && zip -r9 "../Apollo/Product/${NAME}.zip" .)
+          unzip -l "Apollo/Product/${NAME}.zip" | tail -12
+
+      - name: Upload kernel ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: note9-kernel-zip
+          path: Apollo/Product/*.zip
+          if-no-files-found: error
 
       - name: Upload boot image
         uses: actions/upload-artifact@v4
