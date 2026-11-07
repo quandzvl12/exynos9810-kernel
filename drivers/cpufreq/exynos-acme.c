@@ -826,6 +826,10 @@ static __init int init_table(struct exynos_cpufreq_domain *domain)
 	for (index = 0; index < domain->table_size; index++) {
 		domain->freq_table[index].driver_data = index;
 
+		pr_info("acme: dom%u lv%u cal=%lu kHz volt=%u uV%s\n", domain->id, index,
+			table[index], volt_table[index],
+			(table[index] > domain->max_freq || table[index] < domain->min_freq) ? " (masked)" : "");
+
 		if (table[index] > domain->max_freq)
 			domain->freq_table[index].frequency = CPUFREQ_ENTRY_INVALID;
 		else if (table[index] < domain->min_freq)
@@ -1133,6 +1137,40 @@ static __init int cpufreq_read_cpu_min_c2(char *cpu_min_c2)
 }
 __setup("cpu_min_c2=", cpufreq_read_cpu_min_c2);
 
+unsigned long arg_gpu_min = 260000;
+
+static __init int cpufreq_read_gpu_min(char *gpu_min)
+{
+	unsigned long ui_khz;
+	int ret;
+
+	ret = kstrtoul(gpu_min, 0, &ui_khz);
+	if (ret)
+		return -EINVAL;
+
+	arg_gpu_min = ui_khz;
+	printk("gpu_min=%lu\n", arg_gpu_min);
+	return ret;
+}
+__setup("gpu_min=", cpufreq_read_gpu_min);
+
+unsigned long arg_gpu_max = 598000;
+
+static __init int cpufreq_read_gpu_max(char *gpu_max)
+{
+	unsigned long ui_khz;
+	int ret;
+
+	ret = kstrtoul(gpu_max, 0, &ui_khz);
+	if (ret)
+		return -EINVAL;
+
+	arg_gpu_max = ui_khz;
+	printk("gpu_max=%lu\n", arg_gpu_max);
+	return ret;
+}
+__setup("gpu_max=", cpufreq_read_gpu_max);
+
 unsigned long arg_mif_min = 421000;
 
 static __init int cpufreq_read_mif_min(char *mif_min)
@@ -1167,7 +1205,12 @@ static int __init cpufreq_read_cpu_max_c1(char *cpu_max_c1)
 }
 __setup("cpu_max_c1=", cpufreq_read_cpu_max_c1);
 
-unsigned long arg_cpu_max_c2 = 2704000;
+/*
+ * Big cluster ceiling. 2106 MHz is the highest stock CAL step that keeps
+ * 4-core load reasonable; 2314+ MHz is dropped from the table.
+ * Override at boot with cpu_max_c2=<kHz>.
+ */
+unsigned long arg_cpu_max_c2 = 2106000;
 
 static __init int cpufreq_read_cpu_max_c2(char *cpu_max_c2)
 {
