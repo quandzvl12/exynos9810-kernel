@@ -1,0 +1,100 @@
+name: Build Note9 kernel (Apollo / DS-ACK)
+
+on:
+  workflow_dispatch:
+    inputs:
+      selinux:
+        description: "SELinux: 1 = Permissive, 2 = Enforcing"
+        default: "2"
+        type: choice
+        options: ["2", "1"]
+      ksu:
+        description: "Build with KernelSU (y/n)"
+        default: "y"
+        type: choice
+        options: ["y", "n"]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    env:
+      CLANG_DIR_NAME: clang-18.0.1-r522817
+      CLANG_URL: https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/llvm-r522817/clang-r522817.tar.gz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # .gitmodules in this repo maps the wrong path (KernelSU), so the normal
+      # submodule checkout fails. Fetch the pinned KernelSU-Next commit by hand.
+      - name: Fetch KernelSU-Next (pinned commit)
+        run: |
+          SHA=$(git ls-tree HEAD KernelSU-Next | awk '{print $3}')
+          rm -rf KernelSU-Next && mkdir KernelSU-Next
+          git -C KernelSU-Next init -q
+          git -C KernelSU-Next remote add origin https://github.com/KernelSU-Next/KernelSU-Next
+          git -C KernelSU-Next fetch --depth 1 origin "$SHA"
+          git -C KernelSU-Next checkout -q FETCH_HEAD
+          test -f KernelSU-Next/kernel/Makefile
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential bc bison flex libssl-dev libelf-dev \
+            device-tree-compiler python3 cpio zip unzip zstd lz4 xz-utils \
+            curl wget bsdiff pigz rsync
+
+      # apollo.sh looks for the compiler in ../compiler/<name> and its own
+      # download path expects zstd, which breaks for the Google .tar.gz,
+      # so the toolchain is fetched here instead.
+      - name: Cache clang
+        id: clang-cache
+        uses: actions/cache@v4
+        with:
+          path: ../compiler/${{ env.CLANG_DIR_NAME }}
+          key: clang-${{ env.CLANG_DIR_NAME }}
+
+      - name: Download clang 18
+        if: steps.clang-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "../compiler/${CLANG_DIR_NAME}"
+          curl -fL --retry 3 "${CLANG_URL}" | tar -xz -C "../compiler/${CLANG_DIR_NAME}"
+          test -x "../compiler/${CLANG_DIR_NAME}/bin/clang"
+          "../compiler/${CLANG_DIR_NAME}/bin/clang" --version | head -1
+
+      - name: Show applied OC patches (sanity check)
+        run: |
+          grep -n "arg_gpu_max\|arg_cpu_max_c2 =" drivers/cpufreq/exynos-acme.c || true
+          grep -n "MINMAX_dvfs_g3d" drivers/soc/samsung/ect_parser.c || echo "GPU OC patch not present"
+          grep -n "CONFIG_ICE" arch/arm64/configs/exynos9810_defconfig || echo "ICE not enabled"
+
+      # apollo.sh is interactive. Answers in order:
+      # target (3 = Note9 INTL), compiler (3 = Google clang 18),
+      # SELinux, KernelSU, clean build (n).
+      - name: Build (apollo.sh)
+        env:
+          TERM: xterm
+        run: |
+          chmod +x apollo.sh Apollo/A.I.K/*.sh || true
+          printf '3\n3\n%s\n%s\nn\n' "${{ inputs.selinux }}" "${{ inputs.ksu }}" \
+            | bash apollo.sh 2>&1 | tee build.log
+          # apollo.sh exits 0 even on failure, so check for the result
+          ls -l Apollo/Product/*.img
+
+      - name: Upload boot image
+        uses: actions/upload-artifact@v4
+        with:
+          name: note9-boot-img
+          path: Apollo/Product/*.img
+          if-no-files-found: error
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
