@@ -41,7 +41,7 @@ CR_DTB=$CR_DIR/arch/$CR_ARCH/boot/dtb.img
 CR_DEFCONFIG=$CR_DIR/arch/$CR_ARCH/configs
 # Kernel Name and Version
 CR_VERSION=1.0
-CR_NAME=Q-Kernel-(DS-ASK) 
+CR_NAME="Q-Kernel-(DS-ASK)"  
 # Thread count
 CR_JOBS=$(nproc --all)
 # Target Android version
