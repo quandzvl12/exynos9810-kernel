@@ -364,11 +364,16 @@ BUILD_ZIMAGE()
 	$compile $CR_CONFIG
 	echo "Make Kernel with $CR_COMPILER_ARG"
 	$compile -j$CR_JOBS
-	if [ ! -e $CR_KERNEL ]; then
-	exit 0;
-	echo "Image Failed to Compile"
-	echo " Abort "
-	fi
+	if ! $compile -j"$CR_JOBS"; then
+    echo "Image Failed to Compile"
+    echo "Abort"
+    exit 1
+fi
+
+if [ ! -s "$CR_KERNEL" ]; then
+    echo "Image Failed to Compile: Image is missing or empty"
+    exit 1
+fi
 	du -k "$CR_KERNEL" | cut -f1 >sizT
 	sizT=$(head -n 1 sizT)
 	rm -rf sizT
