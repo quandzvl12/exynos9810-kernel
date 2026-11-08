@@ -1382,11 +1382,11 @@ else
 	UTS_RELEASE=$(KERNELRELEASE)
 endif
 define filechk_utsrelease.h
-	if [ `echo -n "$(UTS_RELEASE)" | wc -c ` -gt $(uts_len) ]; then \
-	  echo '"$(UTS_RELEASE)" exceeds $(uts_len) characters' >&2;    \
-	  exit 1;                                                       \
-	fi;                                                             \
-	(echo \#define UTS_RELEASE \"$(UTS_RELEASE)\";)
+    if [ `echo -n "$(UTS_RELEASE)" | wc -c ` -gt $(uts_len) ]; then \
+      echo '"$(UTS_RELEASE)" exceeds $(uts_len) characters' >&2;    \
+      exit 1;                                                       \
+    fi;                                                             \
+    printf '\043define UTS_RELEASE "%s"\n' "$(UTS_RELEASE)"
 endef
 
 define filechk_version.h
