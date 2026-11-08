@@ -117,6 +117,32 @@ static int gpex_clock_update_config_data_from_dt(void)
 		}
 	}
 
+	{
+		dt_clock_item *dt_tbl = gpexbe_devicetree_get_clock_table();
+
+		for (j = 0; j < clk_info.table_size; j++)
+			pr_info("gpex: dvfs row %d: dt=%d kHz, CAL level %s\n", j,
+				dt_tbl[j].clock, clk_info.table[j].clock ? "found" : "missing");
+	}
+
+	/*
+	 * A dts row is only usable if CAL really has that level. If the dts max
+	 * clock is missing from CAL, the top of the table stays empty and the
+	 * governor can no longer find the max level. Fall back to the highest
+	 * level that exists on both sides instead.
+	 */
+	for (j = 0; j < clk_info.table_size; j++)
+		if (clk_info.table[j].clock)
+			break;
+
+	if (j < clk_info.table_size && clk_info.table[j].clock < clk_info.gpu_max_clock) {
+		pr_warn("gpex: CAL has no %d kHz level, limiting max clock to %d kHz\n",
+			clk_info.gpu_max_clock, clk_info.table[j].clock);
+		clk_info.gpu_max_clock = clk_info.table[j].clock;
+		if (clk_info.gpu_max_clock_limit > clk_info.gpu_max_clock)
+			clk_info.gpu_max_clock_limit = clk_info.gpu_max_clock;
+	}
+
 	kfree(fv_array);
 
 	return 0;
