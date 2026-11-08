@@ -84,18 +84,27 @@ jobs:
         env:
           TERM: xterm
         run: |
-          chmod +x apollo.sh Apollo/A.I.K/*.sh || true
-          if [ "${{ inputs.device }}" = "N960N" ]; then TARGET=6; else TARGET=3; fi
-          printf '%s\n3\n%s\n%s\nn\n' "$TARGET" "${{ inputs.selinux }}" "${{ inputs.ksu }}" \
           set -euo pipefail
+
+          chmod +x apollo.sh Apollo/A.I.K/*.sh || true
+
+          if [ "${{ inputs.device }}" = "N960N" ]; then
+            TARGET=6
+          else
+            TARGET=3
+          fi
 
           bash -n apollo.sh
 
-          printf '%s\n3\n%s\n%s\nn\n' "$TARGET" "$SELINUX" "$KSU" \
-              | bash apollo.sh 2>&1 | tee build.log 
-          # apollo.sh exits 0 even on failure, so check for the result
-          ls -l Apollo/Product/*.img
+          printf '%s\n' \
+            "$TARGET" \
+            "3" \
+            "${{ inputs.selinux }}" \
+            "${{ inputs.ksu }}" \
+            "n" |
+              bash apollo.sh 2>&1 | tee build.log
 
+          ls -l Apollo/Product/*.img
       # apollo.sh only builds a ZIP for "all devices" (6 builds). For a single
       # Note9 we take the kernel + dtb back out of the boot.img it just made
       # and put them in the same installer, using them directly (no bsdiff base).
