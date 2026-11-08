@@ -751,12 +751,19 @@ int panel_bl_set_brightness(struct panel_bl_device *panel_bl, int id, int force)
 	panel_bl_update_average(panel_bl, 1);
 
 set_br_exit:
-	return ret;
+    return ret;
+}
+
+static int panel_get_brightness(struct backlight_device *bd)
+{
+    struct panel_bl_device *panel_bl = bl_get_data(bd);
+
+    return get_actual_brightness(panel_bl, bd->props.brightness);
 }
 
 static int panel_set_brightness(struct backlight_device *bd)
 {
-	int ret = 0;
+    int ret = 0; 
 	int id, brightness = bd->props.brightness;
 	struct panel_bl_device *panel_bl = bl_get_data(bd);
 	struct panel_device *panel = to_panel_device(panel_bl);
