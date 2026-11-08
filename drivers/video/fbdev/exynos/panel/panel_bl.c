@@ -754,19 +754,23 @@ set_br_exit:
 	return ret;
 }
 
-static int panel_get_brightness(struct backlight_device *bd)
-{
-	struct panel_bl_device *panel_bl = bl_get_data(bd);
-
-	return get_actual_brightness(panel_bl, bd->props.brightness);
-}
-
 static int panel_set_brightness(struct backlight_device *bd)
 {
 	int ret = 0;
 	int id, brightness = bd->props.brightness;
 	struct panel_bl_device *panel_bl = bl_get_data(bd);
 	struct panel_device *panel = to_panel_device(panel_bl);
+
+	/*
+	 * One UI writes the panel's un-scaled brightness index,
+	 * while PAC 3.0 expects the index multiplied by BRT_SCALE.
+	 *
+	 * Scale only un-scaled values to avoid double scaling.
+	 * Keep the HBM range unchanged.
+	 */
+	if (BRT_SCALE > 1 && brightness > 0 &&
+	    brightness <= bd->props.max_brightness / BRT_SCALE)
+		brightness = BRT(brightness);
 
 	mutex_lock(&panel_bl->lock);
 	mutex_lock(&panel->op_lock);
