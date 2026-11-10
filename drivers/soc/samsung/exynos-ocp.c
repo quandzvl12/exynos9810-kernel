@@ -149,6 +149,14 @@ static unsigned int get_ocp_target_max_limit(unsigned int down_step)
 		index = stats->max_state;
 	ret_freq = stats->freq_table[index];
 
+	/*
+	 * Do not walk the clip below the highest frequency that is safe without
+	 * OCP (max-freq-wo-ocp). Repeated warnings used to push the clip all the
+	 * way down and keep it there while the load stayed high.
+	 */
+	if (ret_freq < data->max_freq_wo_ocp)
+		ret_freq = data->max_freq_wo_ocp;
+
 	return ret_freq;
 }
 
