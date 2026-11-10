@@ -1206,11 +1206,13 @@ static int __init cpufreq_read_cpu_max_c1(char *cpu_max_c1)
 __setup("cpu_max_c1=", cpufreq_read_cpu_max_c1);
 
 /*
- * Big cluster ceiling. 2106 MHz is the highest stock CAL step that keeps
- * 4-core load reasonable; 2314+ MHz is dropped from the table.
+ * Keep the full stock big-cluster table (same as upstream and CrownTrail).
+ * Cutting the table changes cpuinfo_max_freq and the scheduler/governor
+ * scaling. The 2106 MHz ceiling is applied from the dts instead
+ * (hotplug_governor quad_freq/triple_freq, max-freq, policy-max).
  * Override at boot with cpu_max_c2=<kHz>.
  */
-unsigned long arg_cpu_max_c2 = 2106000;
+unsigned long arg_cpu_max_c2 = 2704000;
 
 static __init int cpufreq_read_cpu_max_c2(char *cpu_max_c2)
 {
