@@ -10921,7 +10921,7 @@
 				};
 
 				big-control-temp {
-					temperature = <0x14438>;
+					temperature = <0x157c0>;
 					hysteresis = <0x1388>;
 					type = "passive";
 					linux,phandle = <0x14e>;
